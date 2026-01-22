@@ -6,6 +6,7 @@ This guide explains how to run PPTAgent completely locally on your Mac using Oll
 
 PPTAgent can run entirely locally by using:
 - **Ollama** for LLM inference (replaces OpenAI/Claude/etc.)
+- **Ollama** for image generation (replaces DALL-E, requires v0.14.3+)
 - **DuckDuckGo** for web search (replaces Tavily API)
 - **PyMuPDF** for PDF parsing (replaces MINERU API)
 
@@ -105,6 +106,12 @@ vision_model:
   api_key: "ollama"
   is_multimodal: true
   soft_response_parsing: true
+
+# Optional: Image generation (Ollama v0.14.3+ required)
+t2i_model:
+  base_url: "http://localhost:11434/v1"
+  model: "x/flux2-klein"
+  api_key: "ollama"
 ```
 
 ### 6. Set Environment Variables
@@ -178,6 +185,34 @@ Set `USE_LOCAL_PDF_PARSER=true` or leave `MINERU_API` unset:
 ### For Code Generation
 - **codellama** - Specialized for code
 - **deepseek-coder** - Alternative code model
+
+### For Image Generation (Experimental, v0.14.3+)
+
+Ollama now supports local image generation on macOS. Available models:
+
+| Model | Description | Use Case |
+|-------|-------------|----------|
+| `x/z-image-turbo` | 6B params, Alibaba Tongyi Lab | Photorealistic images |
+| `x/flux2-klein` | Black Forest Labs | Fast generation |
+
+```bash
+# Pull an image generation model
+ollama pull x/flux2-klein
+
+# Or for photorealistic images
+ollama pull x/z-image-turbo
+```
+
+To enable image generation in your config:
+
+```yaml
+t2i_model:
+  base_url: "http://localhost:11434/v1"
+  model: "x/flux2-klein"
+  api_key: "ollama"
+```
+
+**Note:** Image generation is currently macOS only. Windows and Linux support coming soon.
 
 ## Troubleshooting
 

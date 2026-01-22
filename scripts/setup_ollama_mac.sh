@@ -129,6 +129,40 @@ if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     print_success "Vision model pulled!"
 fi
 
+# Image generation models (experimental, Ollama v0.14.3+)
+echo ""
+print_status "Image Generation (Experimental - Ollama v0.14.3+ required)"
+echo "  Available models:"
+echo "    1) x/flux2-klein - Fast image generation (Black Forest Labs)"
+echo "    2) x/z-image-turbo - Photorealistic images (Alibaba Tongyi Lab)"
+echo ""
+read -p "Do you want to pull an image generation model? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Select model:"
+    echo "  1) x/flux2-klein (recommended, faster)"
+    echo "  2) x/z-image-turbo (photorealistic)"
+    read -p "Enter choice [1/2]: " -n 1 -r IMG_CHOICE
+    echo
+    case $IMG_CHOICE in
+        1)
+            print_status "Pulling x/flux2-klein..."
+            ollama pull x/flux2-klein
+            RECOMMENDED_T2I="x/flux2-klein"
+            print_success "Image generation model pulled!"
+            ;;
+        2)
+            print_status "Pulling x/z-image-turbo..."
+            ollama pull x/z-image-turbo
+            RECOMMENDED_T2I="x/z-image-turbo"
+            print_success "Image generation model pulled!"
+            ;;
+        *)
+            print_warning "Skipping image generation model"
+            ;;
+    esac
+fi
+
 # Step 5: Install Python dependencies
 echo ""
 print_status "Installing Python dependencies for local operation..."

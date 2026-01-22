@@ -4,16 +4,21 @@
 # Ollama provides an OpenAI-compatible API at http://localhost:11434/v1
 #
 # Prerequisites:
-# 1. Install Ollama: brew install ollama
+# 1. Install Ollama: brew install ollama (requires v0.14.3+ for image generation)
 # 2. Pull required models:
 #    - ollama pull llama3.3:70b (or llama3.2 for smaller Macs)
 #    - ollama pull llava:34b (for vision, or llava:13b for smaller Macs)
+#    - ollama pull x/flux2-klein (for image generation, experimental)
 # 3. Start Ollama: ollama serve
 #
 # Recommended models by Mac specs:
 # - M1/M2 with 16GB RAM: llama3.2:3b, llava:7b
 # - M1/M2 with 32GB RAM: llama3.2:11b, llava:13b
 # - M1/M2/M3 Pro/Max with 64GB+: llama3.3:70b, llava:34b
+#
+# Image generation models (experimental, macOS only as of v0.14.3):
+# - x/z-image-turbo: 6B parameter model from Alibaba's Tongyi Lab (photorealistic)
+# - x/flux2-klein: Black Forest Labs' fastest image-generation model
 
 # Enable offline mode to disable web searches
 offline_mode: true
@@ -59,10 +64,14 @@ vision_model:
   sampling_parameters:
     temperature: 0.5
 
-# Text-to-image model is optional and not available locally
-# If you need image generation, consider using AUTOMATIC1111 or ComfyUI
-# with an OpenAI-compatible API wrapper
-# t2i_model:
-#   base_url: "http://localhost:7860/v1"
-#   model: "sd-xl"
-#   api_key: "local"
+# Text-to-image model - Ollama now supports image generation (experimental, v0.14.3+)
+# Available models:
+#   - x/z-image-turbo: Photorealistic images (6B params, Alibaba Tongyi Lab)
+#   - x/flux2-klein: Fast image generation (Black Forest Labs)
+# Note: Currently macOS only, Windows/Linux support coming soon
+#
+# To enable, uncomment and pull the model: ollama pull x/flux2-klein
+t2i_model:
+  base_url: "http://localhost:11434/v1"
+  model: "x/flux2-klein"
+  api_key: "ollama"
