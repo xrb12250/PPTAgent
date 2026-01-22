@@ -117,14 +117,32 @@ class LLM:
     def test_connection(self) -> bool:
         """
         Test the connection to the LLM.
+        Supports both OpenAI and Ollama-style endpoints.
 
         Returns:
             bool: True if connection is successful, False otherwise.
         """
         try:
-            self.client.models.list()
+            # Try to list models - works for both OpenAI and Ollama
+            models = self.client.models.list()
+            # For Ollama, we don't strictly require the model to be in the list
+            # as models can be pulled on-demand
+            if self.base_url and "localhost:11434" in self.base_url:
+                # Ollama endpoint - just check if we can connect
+                return True
             return True
         except Exception as e:
+            # For Ollama, try a simple completion as a fallback test
+            if self.base_url and "localhost:11434" in self.base_url:
+                try:
+                    self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": "test"}],
+                        max_tokens=1,
+                    )
+                    return True
+                except Exception:
+                    pass
             logger.warning(
                 "Connection test failed: %s\nLLM: %s: %s, %s",
                 e,
@@ -341,14 +359,29 @@ class AsyncLLM(LLM):
     async def test_connection(self) -> bool:
         """
         Test the connection to the LLM asynchronously.
+        Supports both OpenAI and Ollama-style endpoints.
 
         Returns:
             bool: True if connection is successful, False otherwise.
         """
         try:
             models = await self.client.models.list()
+            # For Ollama, we don't strictly require the model to be in the list
+            if self.base_url and "localhost:11434" in self.base_url:
+                return True
             return any(model.id == self.model for model in models.data)
         except Exception as e:
+            # For Ollama, try a simple completion as a fallback test
+            if self.base_url and "localhost:11434" in self.base_url:
+                try:
+                    await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": "test"}],
+                        max_tokens=1,
+                    )
+                    return True
+                except Exception:
+                    pass
             logger.warning(
                 "Async connection test failed: %s\nLLM: %s: %s, %s",
                 e,

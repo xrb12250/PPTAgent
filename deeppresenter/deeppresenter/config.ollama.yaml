@@ -1,0 +1,68 @@
+# DeepPresenter Configuration for Ollama (Local Mac Setup)
+#
+# This configuration runs entirely locally without external APIs.
+# Ollama provides an OpenAI-compatible API at http://localhost:11434/v1
+#
+# Prerequisites:
+# 1. Install Ollama: brew install ollama
+# 2. Pull required models:
+#    - ollama pull llama3.3:70b (or llama3.2 for smaller Macs)
+#    - ollama pull llava:34b (for vision, or llava:13b for smaller Macs)
+# 3. Start Ollama: ollama serve
+#
+# Recommended models by Mac specs:
+# - M1/M2 with 16GB RAM: llama3.2:3b, llava:7b
+# - M1/M2 with 32GB RAM: llama3.2:11b, llava:13b
+# - M1/M2/M3 Pro/Max with 64GB+: llama3.3:70b, llava:34b
+
+# Enable offline mode to disable web searches
+offline_mode: true
+
+# Context folding for better memory management
+context_folding: true
+max_context_folds: 4
+
+# Research agent - uses a capable local model for research tasks
+research_agent:
+  base_url: "http://localhost:11434/v1"
+  model: "llama3.2"
+  api_key: "ollama"  # Ollama doesn't need a real API key
+  soft_response_parsing: true
+  sampling_parameters:
+    temperature: 0.7
+
+# Design agent - handles presentation design decisions
+design_agent:
+  base_url: "http://localhost:11434/v1"
+  model: "llama3.2"
+  api_key: "ollama"
+  soft_response_parsing: true
+  sampling_parameters:
+    temperature: 0.7
+
+# Long context model - for processing large documents
+long_context_model:
+  base_url: "http://localhost:11434/v1"
+  model: "llama3.2"
+  api_key: "ollama"
+  soft_response_parsing: true
+  sampling_parameters:
+    temperature: 0.3
+
+# Vision model - for image analysis (requires llava or similar)
+vision_model:
+  base_url: "http://localhost:11434/v1"
+  model: "llava"
+  api_key: "ollama"
+  is_multimodal: true
+  soft_response_parsing: true
+  sampling_parameters:
+    temperature: 0.5
+
+# Text-to-image model is optional and not available locally
+# If you need image generation, consider using AUTOMATIC1111 or ComfyUI
+# with an OpenAI-compatible API wrapper
+# t2i_model:
+#   base_url: "http://localhost:7860/v1"
+#   model: "sd-xl"
+#   api_key: "local"

@@ -307,6 +307,18 @@ class LLM(BaseModel):
 
     async def validate(self):
         endpoint = self._endpoints[0]
+        # Skip strict validation for local Ollama endpoints
+        if endpoint.base_url and "localhost:11434" in endpoint.base_url:
+            try:
+                # Just check if we can connect to Ollama
+                await endpoint._client.models.list()
+                return  # Connection successful
+            except Exception as e:
+                raise Exception(
+                    f"Cannot connect to Ollama at {endpoint.base_url}. "
+                    f"Make sure Ollama is running: ollama serve\nError: {e}"
+                )
+
         models = await endpoint._client.models.list()
         # ? This for compatibility with google generative ai
         if not any(model.id.endswith(endpoint.model) for model in models.data):
