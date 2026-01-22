@@ -54,6 +54,14 @@ dependencies = [
     "python-pptx>=0.6.21",
 ]
 
+[project.optional-dependencies]
+ollama = [
+    # Dependencies for running with Ollama locally (no external APIs)
+    "duckduckgo-search>=6.0.0",
+    "pymupdf4llm>=0.0.17",
+    "PyMuPDF>=1.24.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/Force1ess/DeepPresenter"
 "Bug Tracker" = "https://github.com/Force1ess/DeepPresenter/issues"

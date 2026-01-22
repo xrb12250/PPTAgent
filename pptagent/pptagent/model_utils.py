@@ -49,8 +49,36 @@ def _get_lid_model():
 
 
 MINERU_API = os.environ.get("MINERU_API", None)
-if MINERU_API is None:
-    logger.debug("MINERU_API is not set, PDF parsing is not available")
+USE_LOCAL_PDF_PARSER = os.environ.get("USE_LOCAL_PDF_PARSER", "").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
+# Check for local PDF parsing libraries
+LOCAL_PDF_PARSER_AVAILABLE = False
+try:
+    import pymupdf4llm
+
+    LOCAL_PDF_PARSER_AVAILABLE = True
+except ImportError:
+    try:
+        import fitz  # PyMuPDF
+
+        LOCAL_PDF_PARSER_AVAILABLE = True
+    except ImportError:
+        pass
+
+if MINERU_API is None and not LOCAL_PDF_PARSER_AVAILABLE:
+    logger.debug(
+        "MINERU_API is not set and no local PDF parser is available. "
+        "Install pymupdf4llm for local PDF parsing: pip install pymupdf4llm"
+    )
+elif USE_LOCAL_PDF_PARSER or MINERU_API is None:
+    if LOCAL_PDF_PARSER_AVAILABLE:
+        logger.info("Using local PDF parser (pymupdf4llm)")
+    else:
+        logger.debug("MINERU_API is not set, PDF parsing is not available")
 
 
 class ModelManager:
@@ -136,18 +164,102 @@ def get_image_model(device: str = None):
     )
 
 
-async def parse_pdf(pdf_path: str, output_folder: str):
+def parse_pdf_local(pdf_path: str, output_folder: str) -> str:
     """
-    Parse a PDF file and extract text and images.
+    Parse a PDF file locally using pymupdf4llm or PyMuPDF.
+    This doesn't require any external API.
 
     Args:
         pdf_path (str): The path to the PDF file.
-        output_path (str): The root directory to save the extracted content.
+        output_folder (str): The root directory to save the extracted content.
+
+    Returns:
+        str: The text content extracted from the PDF in markdown format.
+    """
+    os.makedirs(output_folder, exist_ok=True)
+    images_folder = join(output_folder, "images")
+    os.makedirs(images_folder, exist_ok=True)
+
+    try:
+        import pymupdf4llm
+
+        # Use pymupdf4llm for better markdown conversion
+        md_text = pymupdf4llm.to_markdown(
+            pdf_path,
+            write_images=True,
+            image_path=images_folder,
+            image_format="png",
+        )
+    except ImportError:
+        # Fallback to basic PyMuPDF
+        import fitz
+
+        doc = fitz.open(pdf_path)
+        md_parts = []
+
+        for page_num, page in enumerate(doc):
+            # Extract text
+            text = page.get_text("text")
+            md_parts.append(f"## Page {page_num + 1}\n\n{text}\n")
+
+            # Extract images
+            image_list = page.get_images(full=True)
+            for img_index, img in enumerate(image_list):
+                xref = img[0]
+                try:
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+                    image_filename = f"page{page_num + 1}_img{img_index + 1}.{image_ext}"
+                    image_path = join(images_folder, image_filename)
+
+                    with open(image_path, "wb") as img_file:
+                        img_file.write(image_bytes)
+
+                    md_parts.append(f"![Image](images/{image_filename})\n")
+                except Exception as e:
+                    logger.warning(f"Failed to extract image: {e}")
+
+        doc.close()
+        md_text = "\n".join(md_parts)
+
+    # Save the markdown output
+    source_md_path = join(output_folder, "source.md")
+    with open(source_md_path, "w", encoding="utf-8") as f:
+        f.write(md_text)
+
+    return md_text
+
+
+async def parse_pdf(pdf_path: str, output_folder: str):
+    """
+    Parse a PDF file and extract text and images.
+    Uses local parsing if USE_LOCAL_PDF_PARSER is set or MINERU_API is not available.
+
+    Args:
+        pdf_path (str): The path to the PDF file.
+        output_folder (str): The root directory to save the extracted content.
 
     Returns:
         str: The text content extracted from the PDF.
     """
-    assert MINERU_API is not None, "MINERU_API is not set"
+    # Use local parser if explicitly requested or if MINERU_API is not set
+    if USE_LOCAL_PDF_PARSER or MINERU_API is None:
+        if not LOCAL_PDF_PARSER_AVAILABLE:
+            raise ImportError(
+                "No PDF parser available. Either set MINERU_API environment variable "
+                "or install pymupdf4llm: pip install pymupdf4llm"
+            )
+        logger.info(f"Parsing PDF locally: {pdf_path}")
+        # Run local parsing in executor to avoid blocking
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, parse_pdf_local, pdf_path, output_folder
+        )
+
+    # Use MINERU API for parsing
     os.makedirs(output_folder, exist_ok=True)
 
     async with aiofiles.open(pdf_path, "rb") as f:

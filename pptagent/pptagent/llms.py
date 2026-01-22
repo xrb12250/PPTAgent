@@ -117,14 +117,32 @@ class LLM:
     def test_connection(self) -> bool:
         """
         Test the connection to the LLM.
+        Supports both OpenAI and Ollama-style endpoints.
 
         Returns:
             bool: True if connection is successful, False otherwise.
         """
         try:
-            self.client.models.list()
+            # Try to list models - works for both OpenAI and Ollama
+            models = self.client.models.list()
+            # For Ollama, we don't strictly require the model to be in the list
+            # as models can be pulled on-demand
+            if self.base_url and "localhost:11434" in self.base_url:
+                # Ollama endpoint - just check if we can connect
+                return True
             return True
         except Exception as e:
+            # For Ollama, try a simple completion as a fallback test
+            if self.base_url and "localhost:11434" in self.base_url:
+                try:
+                    self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": "test"}],
+                        max_tokens=1,
+                    )
+                    return True
+                except Exception:
+                    pass
             logger.warning(
                 "Connection test failed: %s\nLLM: %s: %s, %s",
                 e,
@@ -192,12 +210,44 @@ class LLM:
     def gen_image(self, prompt: str, n: int = 1, **kwargs) -> str:
         """
         Generate an image from a prompt.
+        Supports both OpenAI-compatible APIs and Ollama's image generation.
         """
+        # Check if this is an Ollama endpoint with image generation model
+        if self.base_url and "localhost:11434" in self.base_url and self.model.startswith("x/"):
+            return self._gen_image_ollama(prompt, **kwargs)
+
         return (
             self.client.images.generate(model=self.model, prompt=prompt, n=n, **kwargs)
             .data[0]
             .b64_json
         )
+
+    def _gen_image_ollama(self, prompt: str, **kwargs) -> str:
+        """
+        Generate an image using Ollama's /api/generate endpoint.
+        Ollama v0.14.3+ supports image generation with models like x/flux2-klein.
+        """
+        import requests
+
+        # Ollama uses /api/generate for image generation
+        ollama_base = self.base_url.replace("/v1", "")
+        response = requests.post(
+            f"{ollama_base}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=300,  # Image generation can take a while
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        # Ollama returns the image in the 'images' field as base64
+        if "images" in result and result["images"]:
+            return result["images"][0]
+
+        raise ValueError(f"No image returned from Ollama: {result}")
 
     def to_async(self) -> "AsyncLLM":
         """
@@ -341,14 +391,29 @@ class AsyncLLM(LLM):
     async def test_connection(self) -> bool:
         """
         Test the connection to the LLM asynchronously.
+        Supports both OpenAI and Ollama-style endpoints.
 
         Returns:
             bool: True if connection is successful, False otherwise.
         """
         try:
             models = await self.client.models.list()
+            # For Ollama, we don't strictly require the model to be in the list
+            if self.base_url and "localhost:11434" in self.base_url:
+                return True
             return any(model.id == self.model for model in models.data)
         except Exception as e:
+            # For Ollama, try a simple completion as a fallback test
+            if self.base_url and "localhost:11434" in self.base_url:
+                try:
+                    await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": "test"}],
+                        max_tokens=1,
+                    )
+                    return True
+                except Exception:
+                    pass
             logger.warning(
                 "Async connection test failed: %s\nLLM: %s: %s, %s",
                 e,
@@ -361,6 +426,7 @@ class AsyncLLM(LLM):
     async def gen_image(self, prompt: str, n: int = 1, **kwargs) -> str:
         """
         Generate an image from a prompt asynchronously.
+        Supports both OpenAI-compatible APIs and Ollama's image generation.
 
         Args:
             prompt (str): The text prompt to generate an image from.
@@ -370,10 +436,42 @@ class AsyncLLM(LLM):
         Returns:
             str: Base64-encoded image data.
         """
+        # Check if this is an Ollama endpoint with image generation model
+        if self.base_url and "localhost:11434" in self.base_url and self.model.startswith("x/"):
+            return await self._gen_image_ollama(prompt, **kwargs)
+
         response = await self.client.images.generate(
             model=self.model, prompt=prompt, n=n, response_format="b64_json", **kwargs
         )
         return response.data[0].b64_json
+
+    async def _gen_image_ollama(self, prompt: str, **kwargs) -> str:
+        """
+        Generate an image using Ollama's /api/generate endpoint asynchronously.
+        Ollama v0.14.3+ supports image generation with models like x/flux2-klein.
+        """
+        import aiohttp
+
+        # Ollama uses /api/generate for image generation
+        ollama_base = self.base_url.replace("/v1", "")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{ollama_base}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                },
+                timeout=aiohttp.ClientTimeout(total=300),  # Image generation can take a while
+            ) as response:
+                response.raise_for_status()
+                result = await response.json()
+
+                # Ollama returns the image in the 'images' field as base64
+                if "images" in result and result["images"]:
+                    return result["images"][0]
+
+                raise ValueError(f"No image returned from Ollama: {result}")
 
     def to_sync(self) -> LLM:
         """
